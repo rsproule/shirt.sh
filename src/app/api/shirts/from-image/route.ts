@@ -6,7 +6,10 @@ import { z } from "zod";
 
 // Schema for image-based shirt creation
 export const CreateShirtFromImageBody = z.object({
-  imageUrl: z.string().min(1, "Image URL is required").describe("HTTP/HTTPS URL or base64 data URL (data:image/...)"),
+  imageUrl: z
+    .string()
+    .min(1, "Image URL is required")
+    .describe("HTTP/HTTPS URL or base64 data URL (data:image/...)"),
   size: z.enum(["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"]).default("XL"),
   color: z.enum(["Black", "White"]).default("White"),
   address_to: AddressTo,
@@ -63,7 +66,8 @@ export async function POST(req: NextRequest) {
     // Generate job ID
     const jobId = randomUUID();
 
-    // Create order directly with provided image (skip AI generation)
+    // Create product and order with provided image (skip AI generation)
+    // Product is created first, then order is placed (handled internally by createDirectPrintifyOrder)
     const order = await createDirectPrintifyOrder({
       imageUrl: validatedBody.imageUrl,
       size: validatedBody.size,
@@ -78,7 +82,7 @@ export async function POST(req: NextRequest) {
         status: "completed" as const,
         imageUrl: validatedBody.imageUrl,
         orderId: order.id,
-        productId: null,
+        productId: order.productId,
       },
       { status: 200 },
     );

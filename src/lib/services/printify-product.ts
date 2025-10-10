@@ -1,12 +1,14 @@
 import Printify from "printify-sdk-js";
 
-const PRINTIFY_API_KEY = process.env.PRINTIFY_API_KEY;
-const PRINTIFY_SHOP_ID = process.env.PRINTIFY_SHOP_ID;
+const PRINTIFY_API_KEY = process.env.PRINTIFY_API_KEY || process.env.PRINTIFY_ORDER_API_KEY;
+const PRINTIFY_SHOP_ID = process.env.PRINTIFY_SHOP_ID || process.env.PRINTIFY_ORDER_SHOP_ID;
 
 // Initialize Printify SDK
 const getPrintifyClient = () => {
   if (!PRINTIFY_API_KEY || !PRINTIFY_SHOP_ID) {
-    throw new Error("PRINTIFY_API_KEY and PRINTIFY_SHOP_ID must be set");
+    throw new Error(
+      "PRINTIFY_API_KEY (or PRINTIFY_ORDER_API_KEY) and PRINTIFY_SHOP_ID (or PRINTIFY_ORDER_SHOP_ID) must be set",
+    );
   }
 
   return new Printify({
@@ -37,13 +39,13 @@ export async function uploadImageToPrintify(imageUrl: string): Promise<string> {
 
     const uploadPayload = imageUrl.startsWith("data:")
       ? {
-        file_name: `shirt-design-${Date.now()}.png`,
-        contents: imageUrl.split(",")[1], // base64 data
-      }
+          file_name: `shirt-design-${Date.now()}.png`,
+          contents: imageUrl.split(",")[1], // base64 data
+        }
       : {
-        file_name: `shirt-design-${Date.now()}.png`,
-        url: imageUrl, // regular URL
-      };
+          file_name: `shirt-design-${Date.now()}.png`,
+          url: imageUrl, // regular URL
+        };
 
     const result = await printify.uploads.uploadImage(uploadPayload);
 
@@ -68,13 +70,13 @@ export async function uploadImageAndGetUrl(imageUrl: string): Promise<{
 
     const uploadPayload = imageUrl.startsWith("data:")
       ? {
-        file_name: `shirt-design-${Date.now()}.png`,
-        contents: imageUrl.split(",")[1], // base64 data
-      }
+          file_name: `shirt-design-${Date.now()}.png`,
+          contents: imageUrl.split(",")[1], // base64 data
+        }
       : {
-        file_name: `shirt-design-${Date.now()}.png`,
-        url: imageUrl, // regular URL
-      };
+          file_name: `shirt-design-${Date.now()}.png`,
+          url: imageUrl, // regular URL
+        };
 
     const result = await printify.uploads.uploadImage(uploadPayload);
 
@@ -105,7 +107,9 @@ export async function createPrintifyProduct(params: {
     const printify = getPrintifyClient();
 
     // Step 1: Upload image to Printify
+    console.log("[Printify] Uploading image...");
     const uploadedImageId = await uploadImageToPrintify(params.imageUrl);
+    console.log("[Printify] Image uploaded successfully:", uploadedImageId);
 
     // Step 2: Create product with uploaded image
     const productPayload = {
@@ -139,16 +143,28 @@ export async function createPrintifyProduct(params: {
       ],
     };
 
+    console.log("[Printify] Creating product...");
     const product = await printify.products.create(productPayload);
+    console.log("[Printify] Product created successfully:", product.id);
 
     // Step 3: Publish the product
+    console.log("[Printify] Publishing product...");
     await publishPrintifyProduct(product.id);
+    console.log("[Printify] Product published successfully");
 
     return product as PrintifyProduct;
   } catch (error: any) {
     console.error("[Printify] Product creation error:", error);
+    console.error("[Printify] Error details:", {
+      message: error.message,
+      name: error.name,
+      status: error.status,
+      statusCode: error.statusCode,
+      response: error.response,
+      data: error.data,
+    });
     throw new Error(
-      `Failed to create product: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to create product: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
     );
   }
 }

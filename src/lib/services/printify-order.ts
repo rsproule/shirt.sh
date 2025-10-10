@@ -122,9 +122,10 @@ export async function createPrintifyOrder(params: {
 }
 
 /**
- * Create and submit an order directly (without pre-creating product)
- * This skips the product creation/publish step
- * Note: For direct orders, we still need to upload the image to get a Printify URL
+ * Create and submit an order using two-step approach internally
+ * Step 1: Create and publish product (with image upload)
+ * Step 2: Create order using the product ID
+ * This avoids timeouts by splitting the long-running product creation from order submission
  */
 export async function createDirectPrintifyOrder(params: {
   imageUrl: string;
@@ -133,16 +134,19 @@ export async function createDirectPrintifyOrder(params: {
   color?: string;
   quantity: number;
   addressTo: TAddressTo;
-}): Promise<PrintifyOrder> {
+}): Promise<PrintifyOrderWithProduct> {
   try {
-    const printify = getPrintifyOrderClient();
-    const printifyAddress = toPrintifyAddress(params.addressTo);
+    // Step 1: Create and publish product
+    const { createPrintifyProduct } = await import("./printify-product");
 
-    // Step 1: Upload image to Printify (reuse shared upload function)
-    const { uploadImageAndGetUrl } = await import("./printify-product");
-    const { previewUrl: printifyImageUrl } = await uploadImageAndGetUrl(params.imageUrl);
+    const product = await createPrintifyProduct({
+      imageUrl: params.imageUrl,
+      title: `Custom Shirt Design ${Date.now()}`,
+      description: "Custom designed shirt",
+      placement: "front",
+    });
 
-    // Determine variant ID
+    // Step 2: Determine variant ID
     let variantId: number;
     if (params.variantId) {
       // Use provided variant ID
@@ -158,64 +162,19 @@ export async function createDirectPrintifyOrder(params: {
       variantId = DEFAULT_CC_VARIANT_ID;
     }
 
-    const variantInfo = CC_VARIANT_MAP[variantId] || {
-      size: params.size || DEFAULT_SIZE,
-      color: params.color || DEFAULT_COLOR,
+    // Step 3: Create order with the product
+    const order = await createPrintifyOrder({
+      productId: product.id,
+      variantId: variantId,
+      quantity: params.quantity,
+      addressTo: params.addressTo,
+    });
+
+    // Return order with product ID included
+    return {
+      ...order,
+      productId: product.id,
     };
-
-    const externalId = randomUUID();
-    const lineItemExternalId = randomUUID();
-
-    const orderPayload = {
-      external_id: externalId,
-      label: externalId.slice(0, 10),
-      line_items: [
-        {
-          print_provider_id: CC_PRINT_PROVIDER_ID,
-          blueprint_id: CC_BLUEPRINT_ID,
-          variant_id: variantId,
-          print_areas: {
-            front: [
-              {
-                src: printifyImageUrl,
-                scale: 0.5,
-                x: 0.5,
-                y: 0.4,
-                angle: 0,
-              },
-            ],
-          },
-          quantity: params.quantity,
-          external_id: lineItemExternalId,
-        },
-      ],
-      shipping_method: 1,
-      is_printify_express: false,
-      is_economy_shipping: false,
-      send_shipping_notification: false,
-      address_to: printifyAddress,
-    };
-
-    // Bypass SDK temporarily to get actual error response
-    const response = await fetch(
-      `https://api.printify.com/v1/shops/${PRINTIFY_ORDER_SHOP_ID}/orders.json`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${PRINTIFY_ORDER_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(orderPayload),
-      },
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Printify API error (${response.status}): ${errorText}`);
-    }
-
-    const order = await response.json();
-    return order as PrintifyOrder;
   } catch (error: any) {
     console.error("[Printify] Direct order error:", error);
     throw new Error(
@@ -240,6 +199,10 @@ export interface PrintifyOrder {
   address_to: any;
   shipment: PrintifyShipment;
   created_at: string;
+}
+
+export interface PrintifyOrderWithProduct extends PrintifyOrder {
+  productId: string;
 }
 
 export interface PrintifyLineItem {

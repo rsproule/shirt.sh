@@ -59,9 +59,8 @@ export async function POST(req: NextRequest) {
     const jobId = randomUUID();
 
     // Execute the complete workflow synchronously
-    // (image generation + direct order submission, skipping product publish)
+    // (image generation + product creation + order submission)
     const result = await executeCreateShirtWorkflow(validatedBody, jobId, {
-      skipPublish: true, // Use direct ordering for faster workflow
       variantId: undefined, // Will be determined by size/color
     });
 

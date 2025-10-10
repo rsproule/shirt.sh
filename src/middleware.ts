@@ -5,6 +5,7 @@ import { CreateShirtFromImageBody } from "./app/api/shirts/from-image/route";
 import { CreateShirtBody, ShirtJob } from "./lib/contracts/shirt";
 import { inputSchemaToX402 } from "./lib/x402-schema";
 
+
 export const middleware = paymentMiddleware(
   "0xc0541B06F703c6753B842D83cF62d55F93EE81bE",
   {
