@@ -31,6 +31,7 @@
     "@ts-rest/core": "^3.52.1",
     "@ts-rest/next": "^3.52.1",
     "@ts-rest/open-api": "^3.52.1",
+    "@vercel/analytics": "^1.5.0",
     "ai": "5.0.19",
     "autonumeric": "^4.10.9",
     "class-variance-authority": "^0.7.1",

@@ -2,6 +2,7 @@ import Header from "@/app/_components/header";
 import { Providers } from "@/providers";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -46,6 +47,7 @@ export default function RootLayout({
           <Header title="x402 Shirt" />
           <div className="min-h-0 flex-1">{children}</div>
         </Providers>
+        <Analytics />
       </body>
     </html>
   );

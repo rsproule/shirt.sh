@@ -138,9 +138,13 @@ export async function createDirectPrintifyOrder(params: {
     const printify = getPrintifyOrderClient();
     const printifyAddress = toPrintifyAddress(params.addressTo);
 
-    // Step 1: Upload image to Printify (reuse shared upload function)
+    // Step 1: Upload image to Printify and get the image ID
     const { uploadImageAndGetUrl } = await import("./printify-product");
-    const { previewUrl: printifyImageUrl } = await uploadImageAndGetUrl(params.imageUrl);
+    const { id: printifyImageId, previewUrl: printifyImageUrl } = await uploadImageAndGetUrl(
+      params.imageUrl,
+    );
+
+    console.log(`[Printify Order] Uploaded image ID: ${printifyImageId}`);
 
     // Determine variant ID
     let variantId: number;
@@ -177,7 +181,7 @@ export async function createDirectPrintifyOrder(params: {
           print_areas: {
             front: [
               {
-                src: printifyImageUrl,
+                id: printifyImageId, // Use image ID, not URL
                 scale: 0.5,
                 x: 0.5,
                 y: 0.4,

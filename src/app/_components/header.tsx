@@ -1,4 +1,5 @@
 import { ConnectWallet } from "@/app/_components/x402/ConnectWallet";
+import Link from "next/link";
 import type { FC } from "react";
 
 interface HeaderProps {

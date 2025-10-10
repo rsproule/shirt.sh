@@ -37,21 +37,33 @@ export async function generateShirtTitle(prompt: string): Promise<string> {
  */
 async function generateImageWithGoogle(prompt: string): Promise<string> {
   try {
+    console.log("[Image Generation] Calling Google Gemini...");
+
+    if (!process.env.ECHO_API_KEY) {
+      throw new Error("ECHO_API_KEY environment variable is not set");
+    }
+
     const google = createGoogleGenerativeAI({
       apiKey: process.env.ECHO_API_KEY!,
       baseURL: "https://echo.router.merit.systems",
     });
+
     const result = await generateText({
       model: google("gemini-2.5-flash-image-preview"),
       prompt,
     });
 
+    console.log("[Image Generation] Google response received, files:", result.files?.length || 0);
+
     const imageFile = result.files?.find((file) => file.mediaType?.startsWith("image/"));
 
     if (!imageFile || !imageFile.base64) {
-      throw new Error("No image data returned from Google Gemini");
+      throw new Error(
+        "No image data returned from Google Gemini. The model may not support image generation or the prompt was rejected.",
+      );
     }
 
+    console.log("[Image Generation] Image generated successfully");
     return `data:${imageFile.mediaType};base64,${imageFile.base64}`;
   } catch (error) {
     console.error("[Image Generation] Google error:", error);
@@ -103,6 +115,8 @@ export async function generateShirtImage(
   prompt: string,
   provider: "google" | "openai" = "google",
 ): Promise<string> {
+  console.log(`[Image Generation] Starting generation with ${provider}`);
+
   try {
     if (provider === "openai") {
       return await generateImageWithOpenAI(prompt);
@@ -110,12 +124,14 @@ export async function generateShirtImage(
       return await generateImageWithGoogle(prompt);
     }
   } catch (error) {
-    console.error(`[Image Generation] ${provider} failed, using fallback:`, error);
+    console.error(`[Image Generation] ${provider} failed:`, error);
 
-    const fallbackImageUrl = `https://via.placeholder.com/1024x1024.png?text=${encodeURIComponent(
-      prompt.slice(0, 50),
-    )}`;
-    return fallbackImageUrl;
+    // Don't use fallback - throw error so user knows what went wrong
+    throw new Error(
+      `AI image generation failed with ${provider}: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }. Please try again or use the "Use Image URL" option to provide your own image.`,
+    );
   }
 }
 
