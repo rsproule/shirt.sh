@@ -6,11 +6,27 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { type TCreateShirt, type TShirtJob, CreateShirtBody } from "@/lib/contracts/shirt";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWalletClient } from "wagmi";
 import { Signer, wrapFetchWithPayment } from "x402-fetch";
 
 type Mode = "prompt" | "image";
+
+type FormData = {
+  prompt: string;
+  size: string;
+  color: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  country: string;
+  region: string;
+  address1: string;
+  address2: string;
+  city: string;
+  zip: string;
+};
 
 export function CreateShirtForm() {
   const { data: walletClient } = useWalletClient();
@@ -19,21 +35,49 @@ export function CreateShirtForm() {
   const [imageFile, setImageFile] = useState<string>("");
   const [imageUrl, setImageUrl] = useState("");
 
-  const [formData, setFormData] = useState({
-    prompt: "",
-    size: "XL",
-    color: "White",
-    first_name: "Your",
-    last_name: "Name",
-    email: "your@email.com",
-    phone: "+1 (555) 123-4567",
-    country: "US",
-    region: "Your Region",
-    address1: "Your Address",
-    address2: "Your Address 2",
-    city: "Your City",
-    zip: "12345",
+  const [formData, setFormData] = useState(() => {
+    // Try to load saved address from localStorage
+    if (typeof window !== "undefined") {
+      const savedAddress = localStorage.getItem("shirtslop-address");
+      if (savedAddress) {
+        try {
+          const parsed = JSON.parse(savedAddress);
+          return {
+            prompt: "",
+            size: "XL",
+            color: "White",
+            ...parsed,
+          };
+        } catch (e) {
+          console.error("Failed to parse saved address:", e);
+        }
+      }
+    }
+
+    // Default empty address
+    return {
+      prompt: "",
+      size: "XL",
+      color: "White",
+      first_name: "",
+      last_name: "",
+      email: "",
+      phone: "",
+      country: "US",
+      region: "",
+      address1: "",
+      address2: "",
+      city: "",
+      zip: "",
+    };
   });
+
+  // Auto-open address edit form if no address is saved
+  useEffect(() => {
+    if (!formData.first_name || !formData.address1 || !formData.email) {
+      setIsEditingAddress(true);
+    }
+  }, []);
 
   // Type-safe mutation for prompt-based shirts
   const createShirtMutation = useMutation({
@@ -186,7 +230,7 @@ export function CreateShirtForm() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData((prev) => ({
+    setFormData((prev: FormData) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
@@ -320,7 +364,9 @@ export function CreateShirtForm() {
                     id="size"
                     name="size"
                     value={formData.size}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, size: e.target.value }))}
+                    onChange={(e) =>
+                      setFormData((prev: FormData) => ({ ...prev, size: e.target.value }))
+                    }
                     className="w-full p-2 border rounded-md bg-background"
                   >
                     <option value="S">Small</option>
@@ -342,7 +388,7 @@ export function CreateShirtForm() {
                     name="color"
                     value={formData.color}
                     onChange={(e) =>
-                      setFormData((prev) => ({
+                      setFormData((prev: FormData) => ({
                         ...prev,
                         color: e.target.value,
                       }))
@@ -558,7 +604,23 @@ export function CreateShirtForm() {
                     type="button"
                     variant="secondary"
                     size="sm"
-                    onClick={() => setIsEditingAddress(false)}
+                    onClick={() => {
+                      // Save address to localStorage
+                      const addressData = {
+                        first_name: formData.first_name,
+                        last_name: formData.last_name,
+                        email: formData.email,
+                        phone: formData.phone,
+                        country: formData.country,
+                        region: formData.region,
+                        address1: formData.address1,
+                        address2: formData.address2,
+                        city: formData.city,
+                        zip: formData.zip,
+                      };
+                      localStorage.setItem("shirtslop-address", JSON.stringify(addressData));
+                      setIsEditingAddress(false);
+                    }}
                     className="w-full"
                   >
                     Save Address
