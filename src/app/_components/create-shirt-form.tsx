@@ -90,7 +90,7 @@ export function CreateShirtForm() {
       const paymentFetch = wrapFetchWithPayment(
         fetch,
         walletClient as unknown as Signer,
-        BigInt(25_000_000),
+        BigInt(20_000_000),
       );
 
       const response = await paymentFetch("/api/shirts", {
@@ -126,7 +126,7 @@ export function CreateShirtForm() {
       const paymentFetch = wrapFetchWithPayment(
         fetch,
         walletClient as unknown as Signer,
-        BigInt(25_000_000),
+        BigInt(20_000_000),
       );
 
       const response = await paymentFetch("/api/shirts/from-image", {
@@ -242,7 +242,7 @@ export function CreateShirtForm() {
         {/* Header */}
         <div className="text-center space-y-2">
           <p className="text-muted-foreground">
-            Create custom AI-generated shirts • $25.00 per order
+            Create custom AI-generated shirts • $20.00 per order
           </p>
         </div>
 
@@ -668,7 +668,7 @@ export function CreateShirtForm() {
                     Processing Payment...
                   </>
                 ) : (
-                  "Create Shirt • $25.00"
+                  "Create Shirt • $20.00"
                 )}
               </Button>
             </form>

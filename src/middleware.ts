@@ -1,39 +1,26 @@
-import { facilitator } from "@coinbase/x402";
-import { paymentMiddleware } from "x402-next";
-import { z } from "zod";
-import { CreateShirtFromImageBody } from "./app/api/shirts/from-image/route";
-import { CreateShirtBody, ShirtJob } from "./lib/contracts/shirt";
-import { inputSchemaToX402 } from "./lib/x402-schema";
+import { NextRequest, NextResponse } from "next/server";
 
-
-export const middleware = paymentMiddleware(
-  "0xc0541B06F703c6753B842D83cF62d55F93EE81bE",
-  {
-    "/api/shirts": {
-      price: "$25.00",
-      network: "base",
-      config: {
-        description: "AI-generated shirt design + purchase",
-        discoverable: true,
-        inputSchema: inputSchemaToX402(CreateShirtBody),
-        outputSchema: z.toJSONSchema(ShirtJob),
-      },
-    },
-    "/api/shirts/from-image": {
-      price: "$25.00",
-      network: "base",
-      config: {
-        description: "Custom shirt from your image",
-        discoverable: true,
-        inputSchema: inputSchemaToX402(CreateShirtFromImageBody),
-        outputSchema: z.toJSONSchema(ShirtJob),
-      },
-    },
-  },
-  facilitator,
-);
+/**
+ * Middleware for x402 payment-protected routes
+ *
+ * NOTE: This middleware is now DISABLED because we handle payment verification
+ * and settlement manually in the route handlers. This ensures users are ONLY
+ * charged AFTER successful shirt creation, preventing charges on failures.
+ *
+ * Payment flow:
+ * 1. Route handler verifies payment (checks signature, no charge)
+ * 2. Route handler creates shirt
+ * 3. Route handler settles payment ONLY if creation succeeds
+ *
+ * See: src/lib/x402-payment.ts for payment handling
+ * See: src/app/api/shirts/route.ts and from-image/route.ts for usage
+ */
+export async function middleware(request: NextRequest) {
+  // Pass through all requests - payment handling is done in route handlers
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: ["/api/shirts/:path*"],
-  runtime: "nodejs", // Required for @coinbase/x402 until Edge support is added
+  runtime: "nodejs",
 };

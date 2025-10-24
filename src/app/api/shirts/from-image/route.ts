@@ -1,5 +1,6 @@
 import { AddressTo } from "@/lib/contracts/shirt";
 import { createDirectPrintifyOrder } from "@/lib/services/printify-order";
+import { settlePayment, verifyPayment } from "@/lib/x402-payment";
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -31,6 +32,21 @@ function validateAddressBusinessRules(addr: { country: string; zip: string }) {
 
 export async function POST(req: NextRequest) {
   try {
+    // STEP 1: Verify payment WITHOUT settling (no charge yet)
+    const paymentResult = await verifyPayment(req, {
+      price: "$20.00",
+      network: "base",
+      description: "Custom shirt from your image",
+      resource: `${req.nextUrl.protocol}//${req.nextUrl.host}/api/shirts/from-image`,
+    });
+
+    if (!paymentResult.success) {
+      return paymentResult.response;
+    }
+
+    const { payment, requirements } = paymentResult;
+
+    // STEP 2: Validate and process the request
     const body = await req.json();
 
     // Validate with Zod
@@ -66,7 +82,7 @@ export async function POST(req: NextRequest) {
     // Generate job ID
     const jobId = randomUUID();
 
-    // Create product and order with provided image (skip AI generation)
+    // STEP 3: Create product and order with provided image (skip AI generation)
     // Product is created first, then order is placed (handled internally by createDirectPrintifyOrder)
     const order = await createDirectPrintifyOrder({
       imageUrl: validatedBody.imageUrl,
@@ -75,6 +91,15 @@ export async function POST(req: NextRequest) {
       quantity: 1,
       addressTo: validatedBody.address_to,
     });
+
+    // STEP 4: Only settle payment now that shirt creation succeeded
+    const settlement = await settlePayment(payment, requirements);
+
+    if (!settlement.success) {
+      console.error("Settlement failed after successful shirt creation:", settlement.error);
+      // Shirt was created but payment settlement failed - log for manual review
+      // In production, you might want to handle this differently
+    }
 
     return NextResponse.json(
       {
@@ -87,6 +112,8 @@ export async function POST(req: NextRequest) {
       { status: 200 },
     );
   } catch (e: any) {
+    // Exception occurred - DO NOT settle payment, user is not charged
+    console.error("Error in shirt creation:", e);
     return NextResponse.json(
       {
         ok: false,
