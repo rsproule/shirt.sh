@@ -95,7 +95,6 @@ export async function POST(req: NextRequest) {
         {
           id: jobId,
           status: "completed" as const,
-          imageUrl: result.imageUrl,
           productId: result.productId,
           orderId: result.orderId,
           trackingInfo: result.trackingInfo,

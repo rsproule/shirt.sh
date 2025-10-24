@@ -105,7 +105,6 @@ export async function POST(req: NextRequest) {
       {
         id: jobId,
         status: "completed" as const,
-        imageUrl: validatedBody.imageUrl,
         orderId: order.id,
         productId: order.productId,
       },
