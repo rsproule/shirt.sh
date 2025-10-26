@@ -1,6 +1,7 @@
 import type { TCreateShirt } from "@/lib/contracts/shirt";
 import { generateShirtDesign } from "@/lib/services/image-generation";
 import { createDirectPrintifyOrder } from "@/lib/services/printify-order";
+import { withRetry, RETRY_PRESETS } from "@/lib/utils/retry";
 
 /**
  * Complete workflow for creating a shirt
@@ -18,37 +19,41 @@ export async function executeCreateShirtWorkflow(
 ): Promise<ShirtWorkflowResult> {
   const { imageProvider = "google", variantId } = options;
 
-  try {
-    const { imageUrl, title } = await generateShirtDesign(input.prompt, imageProvider);
+  return withRetry(
+    async () => {
+      // Step 1: Generate image and title (already has retry logic)
+      const { imageUrl, title } = await generateShirtDesign(input.prompt, imageProvider);
 
-    // Use the two-step approach: create product then order
-    // This is now handled internally by createDirectPrintifyOrder
-    const order = await createDirectPrintifyOrder({
-      imageUrl,
-      size: input.size,
-      color: input.color,
-      variantId,
-      quantity: 1,
-      addressTo: input.address_to,
-    });
+      // Step 2: Create product and order (already has retry logic)
+      const order = await createDirectPrintifyOrder({
+        imageUrl,
+        size: input.size,
+        color: input.color,
+        variantId,
+        quantity: 1,
+        addressTo: input.address_to,
+      });
 
-    return {
-      success: true,
-      jobId,
-      imageUrl,
-      productId: order.productId,
-      orderId: order.id,
-      trackingInfo: null,
-    };
-  } catch (error) {
-    console.error(`[Workflow] Error for job ${jobId}:`, error);
+      return {
+        success: true,
+        jobId,
+        imageUrl,
+        productId: order.productId,
+        orderId: order.id,
+        trackingInfo: null,
+      };
+    },
+    RETRY_PRESETS.WORKFLOW,
+    `Shirt creation workflow for job ${jobId}`
+  ).catch((error) => {
+    console.error(`[Workflow] All retry attempts failed for job ${jobId}:`, error);
 
     return {
       success: false,
       jobId,
       error: error instanceof Error ? error.message : "Unknown error occurred",
     };
-  }
+  });
 }
 
 /**

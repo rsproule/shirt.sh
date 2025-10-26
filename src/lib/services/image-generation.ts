@@ -1,6 +1,7 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { experimental_generateImage as generateImage, generateText } from "ai";
+import { withRetry, RETRY_PRESETS } from "@/lib/utils/retry";
 
 /**
  * Generate a catchy product title using an LLM
@@ -8,25 +9,30 @@ import { experimental_generateImage as generateImage, generateText } from "ai";
  * @returns A concise, creative title for the shirt
  */
 export async function generateShirtTitle(prompt: string): Promise<string> {
-  try {
-    const openai = createOpenAI({
-      apiKey: process.env.ECHO_API_KEY!,
-      baseURL: "https://echo.router.merit.systems",
-    });
-    const result = await generateText({
-      model: openai("gpt-5"),
-      prompt: `Generate a short, catchy product title (max 50 characters) for a t-shirt with this design: "${prompt}". Return only the title, nothing else.`,
-    });
+  return withRetry(
+    async () => {
+      const openai = createOpenAI({
+        apiKey: process.env.ECHO_API_KEY!,
+        baseURL: "https://echo.router.merit.systems",
+      });
+      const result = await generateText({
+        model: openai("gpt-5"),
+        prompt: `Generate a short, catchy product title (max 50 characters) for a t-shirt with this design: "${prompt}". Return only the title, nothing else.`,
+      });
 
-    return result.text.trim();
-  } catch (error) {
-    console.error("[Title Generation] Error:", error);
+      return result.text.trim();
+    },
+    RETRY_PRESETS.API_CALL,
+    "Title generation"
+  ).catch((error) => {
+    console.error("[Title Generation] All retry attempts failed:", error);
 
     // Fallback to simple title generation
     const words = prompt.split(" ").slice(0, 4);
     const fallbackTitle = words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    console.log("[Title Generation] Using fallback title:", fallbackTitle);
     return fallbackTitle;
-  }
+  });
 }
 
 /**
@@ -36,29 +42,28 @@ export async function generateShirtTitle(prompt: string): Promise<string> {
  * @throws Error if image generation fails
  */
 async function generateImageWithGoogle(prompt: string): Promise<string> {
-  try {
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.ECHO_API_KEY!,
-      baseURL: "https://echo.router.merit.systems",
-    });
-    const result = await generateText({
-      model: google("gemini-2.5-flash-image-preview"),
-      prompt,
-    });
+  return withRetry(
+    async () => {
+      const google = createGoogleGenerativeAI({
+        apiKey: process.env.ECHO_API_KEY!,
+        baseURL: "https://echo.router.merit.systems",
+      });
+      const result = await generateText({
+        model: google("gemini-2.5-flash-image-preview"),
+        prompt,
+      });
 
-    const imageFile = result.files?.find((file) => file.mediaType?.startsWith("image/"));
+      const imageFile = result.files?.find((file) => file.mediaType?.startsWith("image/"));
 
-    if (!imageFile || !imageFile.base64) {
-      throw new Error("No image data returned from Google Gemini");
-    }
+      if (!imageFile || !imageFile.base64) {
+        throw new Error("No image data returned from Google Gemini");
+      }
 
-    return `data:${imageFile.mediaType};base64,${imageFile.base64}`;
-  } catch (error) {
-    console.error("[Image Generation] Google error:", error);
-    throw new Error(
-      `Google image generation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
-  }
+      return `data:${imageFile.mediaType};base64,${imageFile.base64}`;
+    },
+    RETRY_PRESETS.IMAGE_GENERATION,
+    "Google image generation"
+  );
 }
 
 /**
@@ -68,29 +73,28 @@ async function generateImageWithGoogle(prompt: string): Promise<string> {
  * @throws Error if image generation fails
  */
 async function generateImageWithOpenAI(prompt: string): Promise<string> {
-  try {
-    const openai = createOpenAI({
-      apiKey: process.env.ECHO_API_KEY!,
-      baseURL: "https://echo.router.merit.systems",
-    });
-    const result = await generateImage({
-      model: openai.image("gpt-image-1"),
-      prompt,
-    });
+  return withRetry(
+    async () => {
+      const openai = createOpenAI({
+        apiKey: process.env.ECHO_API_KEY!,
+        baseURL: "https://echo.router.merit.systems",
+      });
+      const result = await generateImage({
+        model: openai.image("gpt-image-1"),
+        prompt,
+      });
 
-    const imageData = result.image;
+      const imageData = result.image;
 
-    if (!imageData || !imageData.base64) {
-      throw new Error("No image data returned from OpenAI");
-    }
+      if (!imageData || !imageData.base64) {
+        throw new Error("No image data returned from OpenAI");
+      }
 
-    return `data:${imageData.mediaType};base64,${imageData.base64}`;
-  } catch (error) {
-    console.error("[Image Generation] OpenAI error:", error);
-    throw new Error(
-      `OpenAI image generation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
-  }
+      return `data:${imageData.mediaType};base64,${imageData.base64}`;
+    },
+    RETRY_PRESETS.IMAGE_GENERATION,
+    "OpenAI image generation"
+  );
 }
 
 /**
@@ -110,11 +114,12 @@ export async function generateShirtImage(
       return await generateImageWithGoogle(prompt);
     }
   } catch (error) {
-    console.error(`[Image Generation] ${provider} failed, using fallback:`, error);
+    console.error(`[Image Generation] ${provider} failed after retries, using fallback:`, error);
 
     const fallbackImageUrl = `https://via.placeholder.com/1024x1024.png?text=${encodeURIComponent(
       prompt.slice(0, 50),
     )}`;
+    console.log("[Image Generation] Using fallback image:", fallbackImageUrl);
     return fallbackImageUrl;
   }
 }

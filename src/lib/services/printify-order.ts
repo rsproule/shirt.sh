@@ -2,6 +2,7 @@ import type { TAddressTo } from "@/lib/contracts/shirt";
 import { toPrintifyAddress } from "@/lib/providers/printify";
 import { randomUUID } from "crypto";
 import Printify from "printify-sdk-js";
+import { withRetry, RETRY_PRESETS } from "@/lib/utils/retry";
 
 const PRINTIFY_ORDER_API_KEY = process.env.PRINTIFY_ORDER_API_KEY;
 const PRINTIFY_ORDER_SHOP_ID = process.env.PRINTIFY_ORDER_SHOP_ID;
@@ -41,27 +42,32 @@ export async function getVariantIdByOptions(params: {
   size: string;
   color: string;
 }): Promise<number> {
-  try {
-    const printify = getPrintifyOrderClient();
+  return withRetry(
+    async () => {
+      const printify = getPrintifyOrderClient();
 
-    const blueprintVariants = await printify.catalog.getBlueprintVariants(
-      CC_BLUEPRINT_ID.toString(),
-      CC_PRINT_PROVIDER_ID.toString(),
-    );
+      const blueprintVariants = await printify.catalog.getBlueprintVariants(
+        CC_BLUEPRINT_ID.toString(),
+        CC_PRINT_PROVIDER_ID.toString(),
+      );
 
-    const variant = blueprintVariants.variants.find(
-      (v) => v.options.size === params.size && v.options.color === params.color,
-    );
+      if (!blueprintVariants || !blueprintVariants.variants) {
+        throw new Error("Invalid response from Printify catalog API");
+      }
 
-    if (!variant) {
-      throw new Error(`Variant not found for ${params.size} ${params.color}`);
-    }
+      const variant = blueprintVariants.variants.find(
+        (v) => v.options.size === params.size && v.options.color === params.color,
+      );
 
-    return variant.id;
-  } catch (error) {
-    console.error("[Printify] Error fetching variant ID:", error);
-    throw error;
-  }
+      if (!variant) {
+        throw new Error(`Variant not found for ${params.size} ${params.color}`);
+      }
+
+      return variant.id;
+    },
+    RETRY_PRESETS.PRINTIFY_OPERATION,
+    "Printify variant lookup"
+  );
 }
 
 // Initialize Printify SDK for order operations
@@ -87,38 +93,42 @@ export async function createPrintifyOrder(params: {
   quantity: number;
   addressTo: TAddressTo;
 }): Promise<PrintifyOrder> {
-  try {
-    const printify = getPrintifyOrderClient();
+  return withRetry(
+    async () => {
+      const printify = getPrintifyOrderClient();
 
-    // Convert address to Printify format
-    const printifyAddress = toPrintifyAddress(params.addressTo);
+      // Convert address to Printify format
+      const printifyAddress = toPrintifyAddress(params.addressTo);
 
-    const externalId = randomUUID();
-    const orderPayload = {
-      external_id: externalId,
-      label: externalId.slice(0, 10),
-      line_items: [
-        {
-          product_id: params.productId,
-          variant_id: params.variantId,
-          quantity: params.quantity,
-        },
-      ],
-      shipping_method: 1,
-      is_printify_express: false,
-      is_economy_shipping: false,
-      send_shipping_notification: true,
-      address_to: printifyAddress,
-    };
+      const externalId = randomUUID();
+      const orderPayload = {
+        external_id: externalId,
+        label: externalId.slice(0, 10),
+        line_items: [
+          {
+            product_id: params.productId,
+            variant_id: params.variantId,
+            quantity: params.quantity,
+          },
+        ],
+        shipping_method: 1,
+        is_printify_express: false,
+        is_economy_shipping: false,
+        send_shipping_notification: true,
+        address_to: printifyAddress,
+      };
 
-    const order = await printify.orders.submit(orderPayload);
-    return order as PrintifyOrder;
-  } catch (error: any) {
-    console.error("[Printify] Order error:", error);
-    throw new Error(
-      `Failed to create order: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
-  }
+      const order = await printify.orders.submit(orderPayload);
+
+      if (!order || !order.id) {
+        throw new Error("Invalid response from Printify order submission API");
+      }
+
+      return order as PrintifyOrder;
+    },
+    RETRY_PRESETS.PRINTIFY_OPERATION,
+    "Printify order creation"
+  );
 }
 
 /**
@@ -135,52 +145,51 @@ export async function createDirectPrintifyOrder(params: {
   quantity: number;
   addressTo: TAddressTo;
 }): Promise<PrintifyOrderWithProduct> {
-  try {
-    // Step 1: Create and publish product
-    const { createPrintifyProduct } = await import("./printify-product");
+  return withRetry(
+    async () => {
+      // Step 1: Create and publish product (already has retry logic)
+      const { createPrintifyProduct } = await import("./printify-product");
 
-    const product = await createPrintifyProduct({
-      imageUrl: params.imageUrl,
-      title: `Custom Shirt Design ${Date.now()}`,
-      description: "Custom designed shirt",
-      placement: "front",
-    });
-
-    // Step 2: Determine variant ID
-    let variantId: number;
-    if (params.variantId) {
-      // Use provided variant ID
-      variantId = params.variantId;
-    } else if (params.size && params.color) {
-      // Dynamically fetch variant ID by size and color
-      variantId = await getVariantIdByOptions({
-        size: params.size,
-        color: params.color,
+      const product = await createPrintifyProduct({
+        imageUrl: params.imageUrl,
+        title: `Custom Shirt Design ${Date.now()}`,
+        description: "Custom designed shirt",
+        placement: "front",
       });
-    } else {
-      // Use default
-      variantId = DEFAULT_CC_VARIANT_ID;
-    }
 
-    // Step 3: Create order with the product
-    const order = await createPrintifyOrder({
-      productId: product.id,
-      variantId: variantId,
-      quantity: params.quantity,
-      addressTo: params.addressTo,
-    });
+      // Step 2: Determine variant ID (with retry logic if needed)
+      let variantId: number;
+      if (params.variantId) {
+        // Use provided variant ID
+        variantId = params.variantId;
+      } else if (params.size && params.color) {
+        // Dynamically fetch variant ID by size and color (already has retry logic)
+        variantId = await getVariantIdByOptions({
+          size: params.size,
+          color: params.color,
+        });
+      } else {
+        // Use default
+        variantId = DEFAULT_CC_VARIANT_ID;
+      }
 
-    // Return order with product ID included
-    return {
-      ...order,
-      productId: product.id,
-    };
-  } catch (error: any) {
-    console.error("[Printify] Direct order error:", error);
-    throw new Error(
-      `Failed to create direct order: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
-  }
+      // Step 3: Create order with the product (already has retry logic)
+      const order = await createPrintifyOrder({
+        productId: product.id,
+        variantId: variantId,
+        quantity: params.quantity,
+        addressTo: params.addressTo,
+      });
+
+      // Return order with product ID included
+      return {
+        ...order,
+        productId: product.id,
+      };
+    },
+    RETRY_PRESETS.WORKFLOW,
+    "Direct Printify order creation"
+  );
 }
 
 /**
