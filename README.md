@@ -1,10 +1,14 @@
-# ShirtSlop API
+# `shirt.sh`
 
-AI-powered custom t-shirt creation and fulfillment API with crypto payments.
+Headless shirt creation powered by [x402](https://www.x402.org/). Live at [shirt.sh](shirt.sh).
+
+`curl -X POST http://shirt.sh/api/shirts ...`
+
+One curl → Shirt shipped.
 
 ## API Endpoints
 
-Both endpoints are protected by x402 payment middleware ($25.00 on Base network).
+Both endpoints are protected by x402 payment middleware ($25.00 on Base).
 
 ---
 
@@ -55,7 +59,7 @@ Generate a custom shirt design using AI and submit order to Printify.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3000/api/shirts \
+curl -X POST http://shirt.sh/api/shirts \
   -H "Content-Type: application/json" \
   -H "X-Payment-Token: <x402-token>" \
   -d '{
@@ -129,7 +133,7 @@ Submit a custom shirt order using your own image.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:3000/api/shirts/from-image \
+curl -X POST http://shirt.sh/api/shirts/from-image \
   -H "Content-Type: application/json" \
   -H "X-Payment-Token: <x402-token>" \
   -d '{
@@ -155,17 +159,20 @@ curl -X POST http://localhost:3000/api/shirts/from-image \
 ---
 
 ## Technology Stack
+Next.js 15 • Gemini (image) • GPT-5 (title) • Printify • x402 • Base
 
-- **Framework:** Next.js 15 with App Router
-- **AI:** Google Gemini (image generation), OpenAI GPT-5 (title generation)
-- **Payments:** x402 (crypto micropayments on Base)
-- **Authentication:** Echo SDK
-- **Fulfillment:** Printify API
-- **Validation:** Zod schemas
-- **Type Safety:** TypeScript + ts-rest contracts
 
 ## Environment Variables
 
+
+## Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+### Env Vars
 ```bash
 # Echo
 ECHO_APP_ID=your_echo_app_id
@@ -178,15 +185,6 @@ PRINTIFY_SHOP_ID=your_shop_id
 PRINTIFY_ORDER_API_KEY=your_order_api_key
 PRINTIFY_ORDER_SHOP_ID=your_order_shop_id
 ```
-
-## Development
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Navigate to `http://localhost:3000`
 
 ## Payment Flow
 
