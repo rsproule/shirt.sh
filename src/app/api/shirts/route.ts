@@ -1,8 +1,10 @@
-import { CreateShirtBody } from "@/lib/contracts/shirt";
+import { CreateShirtBody, ShirtJob } from "@/lib/contracts/shirt";
 import { executeCreateShirtWorkflow } from "@/lib/tasks/create-shirt-workflow";
 import { settlePayment, verifyPayment } from "@/lib/x402-payment";
+import { inputSchemaToX402 } from "@/lib/x402-schema";
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 // Business validators that go beyond Zod
 function validateAddressBusinessRules(addr: { country: string; zip: string }) {
@@ -30,6 +32,9 @@ export async function POST(req: NextRequest) {
       network: "base",
       description: "AI-generated shirt design + purchase",
       resource: `${req.nextUrl.protocol}//${req.nextUrl.host}/api/shirts`,
+      discoverable: true,
+      inputSchema: inputSchemaToX402(CreateShirtBody),
+      outputSchema: z.toJSONSchema(ShirtJob),
     });
 
     if (!paymentResult.success) {

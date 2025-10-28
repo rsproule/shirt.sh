@@ -682,52 +682,16 @@ export function CreateShirtForm() {
             createShirtFromImageMutation.data)) && (
           <Card className="border-green-500 bg-green-50 dark:bg-green-950">
             <CardHeader>
-              <CardTitle className="text-green-900 dark:text-green-100">
-                ✓ Shirt Created Successfully!
-              </CardTitle>
-              <CardDescription>Your custom shirt has been created and ordered</CardDescription>
+              <CardTitle className="text-green-900 dark:text-green-100">✓ Success</CardTitle>
             </CardHeader>
             <CardContent>
-              {(() => {
-                const data =
-                  mode === "prompt" ? createShirtMutation.data : createShirtFromImageMutation.data;
-                if (!data) return null;
-
-                return (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Job ID:</span>
-                      <code className="font-mono text-xs">{data.id}</code>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Status:</span>
-                      <span className="font-medium capitalize">{data.status}</span>
-                    </div>
-                    {data.imageUrl && (
-                      <div className="space-y-2">
-                        <span className="text-muted-foreground text-sm">Design:</span>
-                        <img
-                          src={data.imageUrl}
-                          alt="Shirt design"
-                          className="w-full rounded-lg border"
-                        />
-                      </div>
-                    )}
-                    {data.productId && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Product ID:</span>
-                        <code className="font-mono text-xs">{data.productId}</code>
-                      </div>
-                    )}
-                    {data.orderId && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Order ID:</span>
-                        <code className="font-mono text-xs">{data.orderId}</code>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+              <pre className="p-4 bg-gray-100 dark:bg-gray-900 rounded text-sm overflow-auto">
+                {JSON.stringify(
+                  mode === "prompt" ? createShirtMutation.data : createShirtFromImageMutation.data,
+                  null,
+                  2,
+                )}
+              </pre>
             </CardContent>
           </Card>
         )}
@@ -738,23 +702,87 @@ export function CreateShirtForm() {
             <CardHeader>
               <CardTitle className="text-red-900 dark:text-red-100">✕ Error</CardTitle>
               <CardDescription>
-                {(
-                  (mode === "prompt"
-                    ? createShirtMutation.error
-                    : createShirtFromImageMutation.error) as any
-                )?.error?.message || "An error occurred"}
+                {(() => {
+                  const error = (
+                    mode === "prompt"
+                      ? createShirtMutation.error
+                      : createShirtFromImageMutation.error
+                  ) as any;
+
+                  // Check for CORS/network errors
+                  const isCorsError =
+                    error?.message?.includes("CORS") ||
+                    error?.message?.includes("Failed to fetch") ||
+                    error?.message?.includes("Network request failed") ||
+                    error?.name === "TypeError" ||
+                    (typeof window !== "undefined" && window.location.hostname === "localhost");
+
+                  if (
+                    isCorsError &&
+                    typeof window !== "undefined" &&
+                    window.location.hostname === "localhost"
+                  ) {
+                    return "CORS Error - You need to tunnel your localhost to test with crypto wallets";
+                  }
+
+                  return error?.error?.message || "An error occurred";
+                })()}
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <pre className="text-xs overflow-auto p-4 bg-red-100 dark:bg-red-900/50 rounded">
-                {JSON.stringify(
-                  mode === "prompt"
-                    ? createShirtMutation.error
-                    : createShirtFromImageMutation.error,
-                  null,
-                  2,
-                )}
-              </pre>
+            <CardContent className="space-y-4">
+              {(() => {
+                const error = (
+                  mode === "prompt" ? createShirtMutation.error : createShirtFromImageMutation.error
+                ) as any;
+
+                const isCorsError =
+                  error?.message?.includes("CORS") ||
+                  error?.message?.includes("Failed to fetch") ||
+                  error?.message?.includes("Network request failed") ||
+                  error?.name === "TypeError" ||
+                  (typeof window !== "undefined" && window.location.hostname === "localhost");
+
+                if (
+                  isCorsError &&
+                  typeof window !== "undefined" &&
+                  window.location.hostname === "localhost"
+                ) {
+                  const port = window.location.port || "3000";
+                  const ngrokCommand = `ngrok http ${port}`;
+
+                  return (
+                    <div className="space-y-3">
+                      <p className="text-sm text-red-900 dark:text-red-100">
+                        <strong>Solution:</strong> Run ngrok to tunnel your localhost and enable
+                        wallet connections:
+                      </p>
+                      <div className="relative">
+                        <pre className="text-sm p-3 bg-gray-900 text-green-400 rounded font-mono overflow-x-auto">
+                          {ngrokCommand}
+                        </pre>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(ngrokCommand);
+                          }}
+                          className="absolute top-2 right-2 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        After running ngrok, use the provided HTTPS URL to access your app instead
+                        of localhost.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <pre className="text-xs overflow-auto p-4 bg-red-100 dark:bg-red-900/50 rounded">
+                    {JSON.stringify(error, null, 2)}
+                  </pre>
+                );
+              })()}
             </CardContent>
           </Card>
         )}

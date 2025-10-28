@@ -17,6 +17,9 @@ export interface PaymentConfig {
   network: Network;
   description: string;
   resource: string;
+  inputSchema?: any;
+  outputSchema?: any;
+  discoverable?: boolean;
 }
 
 /**
@@ -55,6 +58,18 @@ export async function verifyPayment(
       payTo: getAddress(PAY_TO_ADDRESS),
       maxTimeoutSeconds: 300,
       asset: getAddress(asset.address),
+      outputSchema:
+        config.inputSchema || config.outputSchema
+          ? {
+              input: config.inputSchema
+                ? {
+                    ...config.inputSchema,
+                    discoverable: config.discoverable ?? true,
+                  }
+                : undefined,
+              output: config.outputSchema,
+            }
+          : undefined,
       extra: "eip712" in asset ? asset.eip712 : undefined,
     });
   } else {

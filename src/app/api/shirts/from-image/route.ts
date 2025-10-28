@@ -1,6 +1,7 @@
-import { AddressTo } from "@/lib/contracts/shirt";
+import { AddressTo, ShirtJob } from "@/lib/contracts/shirt";
 import { createDirectPrintifyOrder } from "@/lib/services/printify-order";
 import { settlePayment, verifyPayment } from "@/lib/x402-payment";
+import { inputSchemaToX402 } from "@/lib/x402-schema";
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -38,6 +39,9 @@ export async function POST(req: NextRequest) {
       network: "base",
       description: "Custom shirt from your image",
       resource: `${req.nextUrl.protocol}//${req.nextUrl.host}/api/shirts/from-image`,
+      discoverable: true,
+      inputSchema: inputSchemaToX402(CreateShirtFromImageBody),
+      outputSchema: z.toJSONSchema(ShirtJob),
     });
 
     if (!paymentResult.success) {
